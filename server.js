@@ -29,7 +29,10 @@ app.use(cors({
     'http://localhost:3001', 
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
-    'http://192.168.1.80:3000' // Network access
+    'http://192.168.1.80:3000', // Network access
+    'https://rezo-app.vercel.app', // Vercel deployment
+    'https://mood-music-app.vercel.app', // Alternative Vercel URL
+    /\.vercel\.app$/ // Allow all Vercel preview deployments
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
