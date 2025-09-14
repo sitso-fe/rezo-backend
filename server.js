@@ -57,6 +57,22 @@ const connectDB = async () => {
 
 connectDB();
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Rezo Backend API',
+    version: '1.0.0',
+    status: 'running',
+    message: 'Welcome to Rezo Backend API',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      users: '/api/users'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
