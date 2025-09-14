@@ -70,7 +70,6 @@ const userSchema = new mongoose.Schema({
 });
 
 // Index pour optimiser les recherches
-userSchema.index({ email: 1 });
 userSchema.index({ magicLinkToken: 1 });
 userSchema.index({ magicLinkExpires: 1 });
 
