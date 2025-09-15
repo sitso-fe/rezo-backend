@@ -1,10 +1,11 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { testEmailConfiguration } = require('./services/emailService');
+require('dotenv').config();
 const morgan = require("morgan");
-require("dotenv").config();
 
 const app = express();
 
@@ -127,15 +128,27 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Configuration du port
-const PORT = process.env.PORT || 5001;
+// Test de la configuration email au démarrage
+const startServer = async () => {
+  console.log('🔧 Test de la configuration email...');
+  const emailConfigValid = await testEmailConfiguration();
+  
+  if (!emailConfigValid) {
+    console.log('⚠️  Configuration email invalide - les magic links ne fonctionneront pas');
+    console.log('📧 Variables requises: EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM');
+  }
+  
+  // Démarrage du serveur
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => {
+    console.log(`🚀 Serveur démarré sur le port ${PORT}`);
+    console.log(`📊 Environnement: ${process.env.NODE_ENV}`);
+    console.log(`🔗 Backend URL: ${process.env.BACKEND_URL || `http://localhost:${PORT}`}`);
+    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
+    console.log(`📧 Configuration email: ${emailConfigValid ? '✅ Valide' : '❌ Invalide'}`);
+  });
+};
 
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur Rezo Backend démarré sur le port ${PORT}`);
-  console.log(`📡 API disponible sur http://localhost:${PORT}`);
-  console.log(
-    `🔗 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:3000"}`
-  );
-});
+startServer().catch(console.error);
 
 module.exports = app;

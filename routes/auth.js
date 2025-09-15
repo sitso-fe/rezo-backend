@@ -113,25 +113,40 @@ router.post('/request-magic-link', magicLinkLimiter, async (req, res) => {
     const token = user.generateMagicLinkToken();
     console.log('🔑 [MAGIC-LINK] Token généré, sauvegarde utilisateur...');
     await user.save();
-    console.log('✅ [MAGIC-LINK] Utilisateur sauvegardé');
+    console.log(' [MAGIC-LINK] Utilisateur sauvegardé');
 
     // Construire le magic link
     const magicLink = `${process.env.FRONTEND_URL}/auth/verify?token=${token}&email=${encodeURIComponent(email)}`;
-    console.log('🔗 [MAGIC-LINK] Magic link construit:', magicLink);
+    console.log(' [MAGIC-LINK] Magic link construit:', magicLink);
 
-    // Envoyer l'email
-    console.log('📤 [MAGIC-LINK] Envoi de l\'email...');
-    await sendMagicLinkEmail(email, magicLink);
-    console.log('✅ [MAGIC-LINK] Email envoyé avec succès');
-
-    res.json({
-      message: 'Magic link envoyé par email',
-      email: email
-    });
+    try {
+      console.log(` [MAGIC-LINK] Tentative d'envoi magic link à ${email}`);
+      console.log(` [MAGIC-LINK] Magic link: ${magicLink}`);
+      
+      await sendMagicLinkEmail(email, magicLink);
+      
+      console.log(` [MAGIC-LINK] Magic link envoyé avec succès à ${email}`);
+      res.json({ 
+        message: 'Magic link envoyé avec succès',
+        email: email 
+      });
+    } catch (emailError) {
+      console.error(' [MAGIC-LINK] Erreur envoi email:', emailError);
+      console.error(' [MAGIC-LINK] Détails erreur email:', {
+        code: emailError.code,
+        command: emailError.command,
+        response: emailError.response,
+        responseCode: emailError.responseCode
+      });
+      res.status(500).json({ 
+        error: 'Erreur lors de l\'envoi de l\'email',
+        details: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+      });
+    }
 
   } catch (error) {
-    console.error('❌ [MAGIC-LINK] Erreur complète:', error);
-    console.error('❌ [MAGIC-LINK] Stack trace:', error.stack);
+    console.error(' [MAGIC-LINK] Erreur complète:', error);
+    console.error(' [MAGIC-LINK] Stack trace:', error.stack);
     res.status(500).json({
       error: 'Erreur lors de l\'envoi du magic link',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
