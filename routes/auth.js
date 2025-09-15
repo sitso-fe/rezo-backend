@@ -192,6 +192,10 @@ router.post('/verify-magic-link', async (req, res) => {
       // Si pas de pseudo fourni, retourner qu'un pseudo est requis
       if (!pseudo) {
         console.log('📝 [VERIFY] Pseudo requis pour nouveau compte');
+        // NE PAS nettoyer le token ici - garder pour la prochaine étape
+        // Marquer que le token a été utilisé une fois pour éviter les abus
+        user.magicLinkUsedOnce = true;
+        await user.save();
         return res.json({
           message: 'Pseudo requis pour nouveau compte',
           requiresPseudo: true,
@@ -208,12 +212,12 @@ router.post('/verify-magic-link', async (req, res) => {
       user.pseudo = pseudo;
     }
 
-    // Marquer comme vérifié et nettoyer le token
+    // Marquer comme vérifié et nettoyer le token SEULEMENT après succès complet
     console.log('✅ [VERIFY] Mise à jour des données utilisateur...');
     user.isVerified = true;
     user.lastLogin = new Date();
     user.loginCount += 1;
-    user.clearMagicLinkToken();
+    user.clearMagicLinkToken(); // Nettoyer maintenant que tout est terminé
     
     console.log('💾 [VERIFY] Sauvegarde utilisateur...');
     await user.save();
@@ -319,6 +323,42 @@ router.post('/logout', authenticateToken, (req, res) => {
   res.json({
     message: 'Déconnexion réussie'
   });
+});
+
+// DELETE /api/auth/cleanup-test-users - Nettoyer les utilisateurs de test (développement seulement)
+router.delete('/cleanup-test-users', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        error: 'Action non autorisée en production'
+      });
+    }
+
+    console.log('🧹 [CLEANUP] Nettoyage des utilisateurs de test...');
+    
+    // Supprimer les utilisateurs avec des emails de test ou des pseudos temporaires
+    const result = await User.deleteMany({
+      $or: [
+        { email: /test@example\.com/i },
+        { email: /.*@test\./i },
+        { pseudo: /^user_\d+$/ }, // Pseudos temporaires comme user_1234567890
+        { isVerified: false } // Utilisateurs non vérifiés
+      ]
+    });
+
+    console.log(`✅ [CLEANUP] ${result.deletedCount} utilisateurs de test supprimés`);
+    
+    res.json({
+      message: 'Nettoyage terminé',
+      deletedCount: result.deletedCount
+    });
+
+  } catch (error) {
+    console.error('❌ [CLEANUP] Erreur lors du nettoyage:', error);
+    res.status(500).json({
+      error: 'Erreur lors du nettoyage'
+    });
+  }
 });
 
 module.exports = router;
