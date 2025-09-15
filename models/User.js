@@ -34,8 +34,39 @@ const userSchema = new mongoose.Schema({
   },
   preferences: {
     preferredGenres: [{
-      type: String,
-      enum: ['pop', 'rock', 'jazz', 'classical', 'electronic', 'hip-hop', 'r&b', 'indie', 'folk', 'reggae']
+      id: String,
+      title: String,
+      type: {
+        type: String,
+        default: 'genre'
+      },
+      spotifyGenres: [String],
+      audioFeatures: {
+        danceability: Number,
+        energy: Number,
+        valence: Number,
+        acousticness: Number
+      },
+      selectedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    musicInteractions: [{
+      content: {
+        id: String,
+        title: String,
+        type: String
+      },
+      type: {
+        type: String,
+        enum: ['like', 'dislike', 'skip']
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now
+      },
+      timeSpent: Number
     }],
     moodHistory: [{
       mood: String,
@@ -47,6 +78,10 @@ const userSchema = new mongoose.Schema({
     onboardingCompleted: {
       type: Boolean,
       default: false
+    },
+    onboardingStep: {
+      type: Number,
+      default: 1
     }
   },
   magicLinkToken: {
@@ -104,6 +139,29 @@ userSchema.methods.clearMagicLinkToken = function() {
   this.magicLinkExpires = undefined;
 };
 
+// Méthode pour ajouter une interaction musicale
+userSchema.methods.addMusicInteraction = function(interaction) {
+  this.preferences.musicInteractions.push(interaction);
+  
+  // Si c'est un "like", ajouter aux genres préférés (max 2)
+  if (interaction.type === 'like' && this.preferences.preferredGenres.length < 2) {
+    const genre = {
+      id: interaction.content.id,
+      title: interaction.content.title,
+      type: interaction.content.type,
+      spotifyGenres: interaction.content.spotifyGenres || [],
+      audioFeatures: interaction.content.audioFeatures || {},
+      selectedAt: new Date()
+    };
+    this.preferences.preferredGenres.push(genre);
+  }
+};
+
+// Méthode pour vérifier si l'onboarding est terminé
+userSchema.methods.checkOnboardingCompletion = function() {
+  return this.preferences.preferredGenres.length >= 2;
+};
+
 // Middleware pre-save pour la validation
 userSchema.pre('save', function(next) {
   if (this.isModified('pseudo')) {
@@ -111,6 +169,12 @@ userSchema.pre('save', function(next) {
       return next(new Error('Le pseudo ne doit pas contenir d\'informations personnelles ou de contenu inapproprié'));
     }
   }
+  
+  // Limiter les genres préférés à 2 maximum
+  if (this.preferences.preferredGenres && this.preferences.preferredGenres.length > 2) {
+    this.preferences.preferredGenres = this.preferences.preferredGenres.slice(0, 2);
+  }
+  
   next();
 });
 

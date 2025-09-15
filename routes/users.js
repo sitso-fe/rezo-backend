@@ -33,10 +33,39 @@ const updateProfileSchema = Joi.object({
   avatar: Joi.string().uri().optional(),
   preferences: Joi.object({
     preferredGenres: Joi.array().items(
-      Joi.string().valid('pop', 'rock', 'jazz', 'classical', 'electronic', 'hip-hop', 'r&b', 'indie', 'folk', 'reggae')
-    ).optional(),
-    onboardingCompleted: Joi.boolean().optional()
+      Joi.object({
+        id: Joi.string().required(),
+        title: Joi.string().required(),
+        type: Joi.string().default('genre'),
+        spotifyGenres: Joi.array().items(Joi.string()).optional(),
+        audioFeatures: Joi.object({
+          danceability: Joi.number().min(0).max(1).optional(),
+          energy: Joi.number().min(0).max(1).optional(),
+          valence: Joi.number().min(0).max(1).optional(),
+          acousticness: Joi.number().min(0).max(1).optional()
+        }).optional()
+      })
+    ).max(2).optional(),
+    onboardingCompleted: Joi.boolean().optional(),
+    onboardingStep: Joi.number().min(1).max(5).optional()
   }).optional()
+});
+
+const musicInteractionSchema = Joi.object({
+  content: Joi.object({
+    id: Joi.string().required(),
+    title: Joi.string().required(),
+    type: Joi.string().required(),
+    spotifyGenres: Joi.array().items(Joi.string()).optional(),
+    audioFeatures: Joi.object({
+      danceability: Joi.number().min(0).max(1).optional(),
+      energy: Joi.number().min(0).max(1).optional(),
+      valence: Joi.number().min(0).max(1).optional(),
+      acousticness: Joi.number().min(0).max(1).optional()
+    }).optional()
+  }).required(),
+  type: Joi.string().valid('like', 'dislike', 'skip').required(),
+  timeSpent: Joi.number().min(0).optional()
 });
 
 const moodSchema = Joi.object({
@@ -181,6 +210,73 @@ router.get('/mood-history', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur get mood history:', error);
+    res.status(500).json({
+      error: 'Erreur serveur'
+    });
+  }
+});
+
+// POST /api/users/music-interaction - Enregistrer une interaction musicale
+router.post('/music-interaction', authenticateToken, async (req, res) => {
+  try {
+    const { error, value } = musicInteractionSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: 'Données invalides',
+        details: error.details[0].message
+      });
+    }
+
+    const user = await User.findById(req.user.userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        error: 'Utilisateur non trouvé'
+      });
+    }
+
+    // Ajouter l'interaction
+    user.addMusicInteraction(value);
+    
+    // Vérifier si l'onboarding est terminé
+    const onboardingCompleted = user.checkOnboardingCompletion();
+    if (onboardingCompleted && !user.preferences.onboardingCompleted) {
+      user.preferences.onboardingCompleted = true;
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Interaction enregistrée',
+      interaction: value,
+      preferredGenres: user.preferences.preferredGenres,
+      onboardingCompleted: user.preferences.onboardingCompleted
+    });
+  } catch (error) {
+    console.error('Erreur music interaction:', error);
+    res.status(500).json({
+      error: 'Erreur lors de l\'enregistrement'
+    });
+  }
+});
+
+// GET /api/users/music-interactions - Obtenir l'historique des interactions musicales
+router.get('/music-interactions', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        error: 'Utilisateur non trouvé'
+      });
+    }
+
+    res.json({
+      musicInteractions: user.preferences.musicInteractions || [],
+      preferredGenres: user.preferences.preferredGenres || []
+    });
+  } catch (error) {
+    console.error('Erreur get music interactions:', error);
     res.status(500).json({
       error: 'Erreur serveur'
     });
