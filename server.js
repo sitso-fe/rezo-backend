@@ -40,21 +40,10 @@ app.use(rateLimitConfigs.general);
 // CORS configuration - Plus restrictive en production
 const corsOptions = {
   origin: function (origin, callback) {
-    // En développement, permettre localhost
+    // En développement, permettre toutes les requêtes
     if (process.env.NODE_ENV === "development") {
-      const allowedOrigins = [
-        process.env.FRONTEND_URL || "http://localhost:3000",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-      ];
-
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Non autorisé par CORS"));
-      }
+      console.log(`🌐 CORS - Origin: ${origin || "undefined"}`);
+      callback(null, true);
     } else {
       // En production, seulement les domaines autorisés
       const allowedOrigins = [
@@ -73,7 +62,7 @@ const corsOptions = {
         callback(null, true);
       } else {
         console.log(`🚫 CORS rejeté pour origin: ${origin}`);
-        console.log(`✅ Origins autorisés: ${allowedOrigins.join(', ')}`);
+        console.log(`✅ Origins autorisés: ${allowedOrigins.join(", ")}`);
         callback(new Error("Non autorisé par CORS"));
       }
     }
@@ -134,8 +123,14 @@ app.get("/", (req, res) => {
 });
 
 // Routes
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/users", require("./routes/users"));
+// En développement, utiliser les routes de test sans MongoDB
+if (process.env.NODE_ENV === "development") {
+  app.use("/api/auth", require("./routes/auth-dev"));
+  console.log("🔧 Mode développement: Utilisation des routes de test");
+} else {
+  app.use("/api/auth", require("./routes/auth"));
+  app.use("/api/users", require("./routes/users"));
+}
 
 // Monitoring endpoints
 app.get("/api/health", monitoringEndpoints.health);

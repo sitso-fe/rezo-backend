@@ -224,6 +224,11 @@ const attackDetection = {
 
   // Détecter les requêtes de scraping
   detectScraping: (req) => {
+    // En développement, permettre les requêtes de test
+    if (process.env.NODE_ENV === "development") {
+      return false;
+    }
+
     const userAgent = req.get("User-Agent") || "";
     const scrapingPatterns = [
       /bot/i,
