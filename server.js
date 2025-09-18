@@ -1,46 +1,86 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const { testEmailConfiguration } = require('./services/emailService');
-require('dotenv').config();
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const helmet = require("helmet");
+const { testEmailConfiguration } = require("./services/emailService");
+const { rateLimitConfigs, securityMiddleware } = require("./utils/security");
+const { globalErrorHandler, notFound } = require("./utils/errorHandler");
+const {
+  monitoringMiddleware,
+  monitoringEndpoints,
+} = require("./utils/monitoring");
+require("dotenv").config();
 const morgan = require("morgan");
 
 const app = express();
 
 // Security middleware
-app.use(helmet());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: "Trop de requêtes, réessayez plus tard",
-  },
-});
-app.use(limiter);
-
-// CORS configuration
 app.use(
-  cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:3001",
-      "http://192.168.1.80:3000", // Network access
-      "https://mood-music-mtq1hf8kb-sitsos-projects-8029d805.vercel.app", // Vercel deployment
-      // Alternative Vercel URL
-      /\.vercel\.app$/, // Allow all Vercel preview deployments
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://api.jamendo.com"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'", "https://api.jamendo.com"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
   })
 );
+
+// Rate limiting - Configuration plus stricte
+app.use(rateLimitConfigs.general);
+
+// CORS configuration - Plus restrictive en production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // En développement, permettre localhost
+    if (process.env.NODE_ENV === "development") {
+      const allowedOrigins = [
+        process.env.FRONTEND_URL || "http://localhost:3000",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+      ];
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Non autorisé par CORS"));
+      }
+    } else {
+      // En production, seulement les domaines autorisés
+      const allowedOrigins = [
+        process.env.FRONTEND_URL,
+        process.env.PRODUCTION_FRONTEND_URL,
+      ].filter(Boolean);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Non autorisé par CORS"));
+      }
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+
+// Security middleware
+app.use(securityMiddleware.sanitizeInput);
+app.use(securityMiddleware.detectAttacks);
+app.use(securityMiddleware.securityLogging);
 
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
@@ -48,6 +88,9 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Logging
 app.use(morgan("combined"));
+
+// Monitoring middleware
+app.use(monitoringMiddleware.requestLogger);
 
 // MongoDB connection
 const connectDB = async () => {
@@ -85,67 +128,46 @@ app.get("/", (req, res) => {
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "Rezo Backend API is running",
-    timestamp: new Date().toISOString(),
-    mongodb:
-      mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-  });
-});
+// Monitoring endpoints
+app.get("/api/health", monitoringEndpoints.health);
+app.get("/api/metrics", monitoringEndpoints.metrics);
+app.get("/api/logs", monitoringEndpoints.logs);
 
 // 404 handler
-app.use("*", (req, res) => {
-  res.status(404).json({
-    error: "Route non trouvée",
-  });
-});
+app.use("*", notFound);
 
 // Error handling middleware
-app.use((err, req, res, next) => {
-  console.error("Erreur serveur:", err);
-
-  if (err.name === "ValidationError") {
-    return res.status(400).json({
-      error: "Données invalides",
-      details: err.message,
-    });
-  }
-
-  if (err.name === "CastError") {
-    return res.status(400).json({
-      error: "ID invalide",
-    });
-  }
-
-  res.status(500).json({
-    error:
-      process.env.NODE_ENV === "production"
-        ? "Erreur serveur interne"
-        : err.message,
-  });
-});
+app.use(monitoringMiddleware.errorLogger);
+app.use(globalErrorHandler);
 
 // Test de la configuration email au démarrage
 const startServer = async () => {
-  console.log('🔧 Test de la configuration email...');
+  console.log("🔧 Test de la configuration email...");
   const emailConfigValid = await testEmailConfiguration();
-  
+
   if (!emailConfigValid) {
-    console.log('⚠️  Configuration email invalide - les magic links ne fonctionneront pas');
-    console.log('📧 Variables requises: EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM');
+    console.log(
+      "⚠️  Configuration email invalide - les magic links ne fonctionneront pas"
+    );
+    console.log(
+      "📧 Variables requises: EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM"
+    );
   }
-  
+
   // Démarrage du serveur
   const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => {
     console.log(`🚀 Serveur démarré sur le port ${PORT}`);
     console.log(`📊 Environnement: ${process.env.NODE_ENV}`);
-    console.log(`🔗 Backend URL: ${process.env.BACKEND_URL || `http://localhost:${PORT}`}`);
+    console.log(
+      `🔗 Backend URL: ${process.env.BACKEND_URL || `http://localhost:${PORT}`}`
+    );
     console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
-    console.log(`📧 Configuration email: ${emailConfigValid ? '✅ Valide' : '❌ Invalide'}`);
+    console.log(
+      `📧 Configuration email: ${
+        emailConfigValid ? "✅ Valide" : "❌ Invalide"
+      }`
+    );
   });
 };
 

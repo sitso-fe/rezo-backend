@@ -4,7 +4,9 @@
   "description": "Backend API pour Rezo - Plateforme musicale émotionnelle",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --detectOpenHandles --forceExit",
+    "test:watch": "jest --watch --detectOpenHandles --forceExit",
+    "test:coverage": "jest --coverage --detectOpenHandles --forceExit",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "echo 'No build step required'"
