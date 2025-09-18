@@ -60,11 +60,20 @@ const corsOptions = {
       const allowedOrigins = [
         process.env.FRONTEND_URL,
         process.env.PRODUCTION_FRONTEND_URL,
+        "https://mood-music-app-phi.vercel.app", // URL Vercel du frontend
       ].filter(Boolean);
+
+      // Permettre les requêtes sans origin (health checks, etc.)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.log(`🚫 CORS rejeté pour origin: ${origin}`);
+        console.log(`✅ Origins autorisés: ${allowedOrigins.join(', ')}`);
         callback(new Error("Non autorisé par CORS"));
       }
     }
