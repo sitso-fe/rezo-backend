@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { sendMagicLink: resendSendMagicLink, testResendConfiguration } = require('./resendEmailService');
 
 // Configuration du transporteur email
 const createTransporter = () => {
@@ -324,23 +325,31 @@ const getWelcomeEmailTemplate = (pseudo) => {
  * Envoie un email avec magic link
  * @param {string} email - Email du destinataire
  * @param {string} magicLink - Lien magique à envoyer
+ * @param {string} token - Token pour le mode développement
  * @returns {Promise} - Promesse de l'envoi
  */
-const sendMagicLinkEmail = async (email, magicLink) => {
+const sendMagicLinkEmail = async (email, magicLink, token = null) => {
   try {
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: `"Rezo" <${process.env.EMAIL_FROM}>`,
-      to: email,
-      subject: '🎵 Ton lien de connexion Rezo',
-      text: getMagicLinkTextTemplate(magicLink, email),
-      html: getMagicLinkEmailTemplate(magicLink, email)
-    };
-    
-    const result = await transporter.sendMail(mailOptions);
-    console.log('Magic link email envoyé:', result.messageId);
-    return result;
+    // Utiliser Resend si configuré, sinon fallback sur Nodemailer
+    if (process.env.RESEND_API_KEY) {
+      console.log('📧 Utilisation de Resend pour l\'envoi');
+      return await resendSendMagicLink(email, magicLink, token);
+    } else {
+      console.log('📧 Utilisation de Nodemailer pour l\'envoi');
+      const transporter = createTransporter();
+      
+      const mailOptions = {
+        from: `"Rezo" <${process.env.EMAIL_FROM}>`,
+        to: email,
+        subject: '🎵 Ton lien de connexion Rezo',
+        text: getMagicLinkTextTemplate(magicLink, email),
+        html: getMagicLinkEmailTemplate(magicLink, email)
+      };
+      
+      const result = await transporter.sendMail(mailOptions);
+      console.log('Magic link email envoyé:', result.messageId);
+      return result;
+    }
   } catch (error) {
     console.error('Erreur envoi magic link email:', error);
     throw error;
@@ -380,10 +389,17 @@ const sendWelcomeEmail = async (email, pseudo) => {
  */
 const testEmailConfiguration = async () => {
   try {
-    const transporter = createTransporter();
-    await transporter.verify();
-    console.log('✅ Configuration email valide');
-    return true;
+    // Tester Resend en priorité si configuré
+    if (process.env.RESEND_API_KEY) {
+      console.log('🧪 Test configuration Resend...');
+      return await testResendConfiguration();
+    } else {
+      console.log('🧪 Test configuration Nodemailer...');
+      const transporter = createTransporter();
+      await transporter.verify();
+      console.log('✅ Configuration email valide');
+      return true;
+    }
   } catch (error) {
     console.error('❌ Configuration email invalide:', error.message);
     return false;
