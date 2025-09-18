@@ -2,10 +2,17 @@
  * Service d'envoi d'emails avec Resend
  * Alternative moderne et gratuite à Gmail SMTP
  */
-const { Resend } = require('resend');
+const { Resend } = require("resend");
 
-// Initialiser Resend avec la clé API
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialiser Resend de manière conditionnelle
+let resend = null;
+
+const getResendInstance = () => {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+};
 
 /**
  * Envoyer un magic link par email
@@ -18,6 +25,11 @@ const sendMagicLink = async (email, magicLink, token = null) => {
   try {
     console.log(`📧 Envoi magic link à: ${email}`);
     
+    const resendInstance = getResendInstance();
+    if (!resendInstance) {
+      throw new Error("Resend non configuré - vérifiez RESEND_API_KEY");
+    }
+
     // Template HTML pour l'email
     const htmlContent = `
       <!DOCTYPE html>
@@ -116,13 +128,17 @@ const sendMagicLink = async (email, magicLink, token = null) => {
               </a>
             </div>
             
-            ${token ? `
+            ${
+              token
+                ? `
               <div class="dev-info">
                 <strong>🧪 Mode Développement</strong><br>
                 Token: <code>${token}</code><br>
                 <small>Utilisez ce token pour tester la connexion</small>
               </div>
-            ` : ''}
+            `
+                : ""
+            }
             
             <div class="footer">
               <p>Ce lien expire dans 10 minutes pour votre sécurité.</p>
@@ -141,7 +157,7 @@ const sendMagicLink = async (email, magicLink, token = null) => {
       Cliquez sur ce lien pour vous connecter :
       ${magicLink}
       
-      ${token ? `\n🧪 Mode Développement - Token: ${token}` : ''}
+      ${token ? `\n🧪 Mode Développement - Token: ${token}` : ""}
       
       Ce lien expire dans 10 minutes.
       
@@ -150,27 +166,26 @@ const sendMagicLink = async (email, magicLink, token = null) => {
 
     // Configuration de l'email
     const emailData = {
-      from: process.env.RESEND_FROM_EMAIL || 'Rezo <onboarding@resend.dev>',
+      from: process.env.RESEND_FROM_EMAIL || "Rezo <onboarding@resend.dev>",
       to: [email],
-      subject: '🎵 Votre lien magique Rezo',
+      subject: "🎵 Votre lien magique Rezo",
       html: htmlContent,
       text: textContent,
     };
 
     // Envoyer l'email
-    const result = await resend.emails.send(emailData);
-    
-    console.log('✅ Email envoyé avec succès:', result);
+    const result = await resendInstance.emails.send(emailData);
+
+    console.log("✅ Email envoyé avec succès:", result);
     return {
       success: true,
       messageId: result.id,
       email: email,
       magicLink: magicLink,
-      testToken: token
+      testToken: token,
     };
-
   } catch (error) {
-    console.error('❌ Erreur envoi email Resend:', error);
+    console.error("❌ Erreur envoi email Resend:", error);
     throw new Error(`Erreur envoi email: ${error.message}`);
   }
 };
@@ -182,23 +197,28 @@ const sendMagicLink = async (email, magicLink, token = null) => {
 const testResendConfiguration = async () => {
   try {
     if (!process.env.RESEND_API_KEY) {
-      console.log('❌ RESEND_API_KEY non configurée');
+      console.log("❌ RESEND_API_KEY non configurée");
+      return false;
+    }
+
+    const resendInstance = getResendInstance();
+    if (!resendInstance) {
+      console.log("❌ Impossible d'initialiser Resend");
       return false;
     }
 
     // Test simple avec un email de test
-    const testResult = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'Rezo <onboarding@resend.dev>',
-      to: ['test@example.com'],
-      subject: 'Test Configuration Resend',
-      html: '<p>Test de configuration Resend réussi !</p>',
+    const testResult = await resendInstance.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "Rezo <onboarding@resend.dev>",
+      to: ["test@example.com"],
+      subject: "Test Configuration Resend",
+      html: "<p>Test de configuration Resend réussi !</p>",
     });
 
-    console.log('✅ Configuration Resend valide:', testResult);
+    console.log("✅ Configuration Resend valide:", testResult);
     return true;
-
   } catch (error) {
-    console.error('❌ Erreur test configuration Resend:', error);
+    console.error("❌ Erreur test configuration Resend:", error);
     return false;
   }
 };
@@ -212,18 +232,18 @@ const getEmailStats = async () => {
     // Resend ne fournit pas d'API de stats dans la version gratuite
     // On peut implémenter un système de logging local
     return {
-      status: 'active',
-      provider: 'Resend',
-      message: 'Service actif'
+      status: "active",
+      provider: "Resend",
+      message: "Service actif",
     };
   } catch (error) {
-    console.error('❌ Erreur récupération stats:', error);
-    return { status: 'error', message: error.message };
+    console.error("❌ Erreur récupération stats:", error);
+    return { status: "error", message: error.message };
   }
 };
 
 module.exports = {
   sendMagicLink,
   testResendConfiguration,
-  getEmailStats
+  getEmailStats,
 };

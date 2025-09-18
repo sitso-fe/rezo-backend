@@ -28,6 +28,7 @@ RESEND_FROM_EMAIL=Rezo <onboarding@resend.dev>
 ## 🧪 **Étape 4 : Tester la configuration**
 
 1. **Redémarrez votre serveur backend** :
+
    ```bash
    cd rezo-backend
    npm start
@@ -58,17 +59,20 @@ RESEND_FROM_EMAIL=Rezo <onboarding@resend.dev>
 ## 🔧 **Dépannage**
 
 ### Si vous ne recevez pas d'emails :
+
 1. **Vérifiez votre clé API** dans le dashboard Resend
 2. **Vérifiez les logs** du serveur backend
 3. **Vérifiez votre dossier spam**
 4. **Testez avec un autre email**
 
 ### Si l'erreur "Invalid API key" :
+
 1. **Vérifiez que la clé commence par `re_`**
 2. **Vérifiez qu'il n'y a pas d'espaces** dans la clé
 3. **Recréez une nouvelle clé API** si nécessaire
 
 ### Si l'erreur "Domain not verified" :
+
 1. **Utilisez l'email par défaut** : `onboarding@resend.dev`
 2. **Ou vérifiez votre domaine** dans le dashboard Resend
 
@@ -86,4 +90,5 @@ RESEND_FROM_EMAIL=Rezo <onboarding@resend.dev>
 4. **Implémenter les statistiques** d'envoi
 
 ---
-*Dernière mise à jour : 18 septembre 2025*
+
+_Dernière mise à jour : 18 septembre 2025_

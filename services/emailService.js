@@ -1,5 +1,8 @@
-const nodemailer = require('nodemailer');
-const { sendMagicLink: resendSendMagicLink, testResendConfiguration } = require('./resendEmailService');
+const nodemailer = require("nodemailer");
+const {
+  sendMagicLink: resendSendMagicLink,
+  testResendConfiguration,
+} = require("./resendEmailService");
 
 // Configuration du transporteur email
 const createTransporter = () => {
@@ -9,11 +12,11 @@ const createTransporter = () => {
     secure: false, // true pour 465, false pour les autres ports
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      pass: process.env.EMAIL_PASS,
     },
     tls: {
-      rejectUnauthorized: false
-    }
+      rejectUnauthorized: false,
+    },
   });
 };
 
@@ -332,26 +335,26 @@ const sendMagicLinkEmail = async (email, magicLink, token = null) => {
   try {
     // Utiliser Resend si configuré, sinon fallback sur Nodemailer
     if (process.env.RESEND_API_KEY) {
-      console.log('📧 Utilisation de Resend pour l\'envoi');
+      console.log("📧 Utilisation de Resend pour l'envoi");
       return await resendSendMagicLink(email, magicLink, token);
     } else {
-      console.log('📧 Utilisation de Nodemailer pour l\'envoi');
+      console.log("📧 Utilisation de Nodemailer pour l'envoi");
       const transporter = createTransporter();
-      
+
       const mailOptions = {
         from: `"Rezo" <${process.env.EMAIL_FROM}>`,
         to: email,
-        subject: '🎵 Ton lien de connexion Rezo',
+        subject: "🎵 Ton lien de connexion Rezo",
         text: getMagicLinkTextTemplate(magicLink, email),
-        html: getMagicLinkEmailTemplate(magicLink, email)
+        html: getMagicLinkEmailTemplate(magicLink, email),
       };
-      
+
       const result = await transporter.sendMail(mailOptions);
-      console.log('Magic link email envoyé:', result.messageId);
+      console.log("Magic link email envoyé:", result.messageId);
       return result;
     }
   } catch (error) {
-    console.error('Erreur envoi magic link email:', error);
+    console.error("Erreur envoi magic link email:", error);
     throw error;
   }
 };
@@ -365,20 +368,20 @@ const sendMagicLinkEmail = async (email, magicLink, token = null) => {
 const sendWelcomeEmail = async (email, pseudo) => {
   try {
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: `"Rezo" <${process.env.EMAIL_FROM}>`,
       to: email,
       subject: `🎉 Bienvenue sur Rezo, ${pseudo} !`,
       text: `Bienvenue ${pseudo} !\n\nTu fais maintenant partie de la communauté Rezo. Découvre de la musique selon ton humeur et connecte-toi avec d'autres mélomanes.\n\nCommence ton exploration : ${process.env.FRONTEND_URL}\n\nL'équipe Rezo`,
-      html: getWelcomeEmailTemplate(pseudo)
+      html: getWelcomeEmailTemplate(pseudo),
     };
-    
+
     const result = await transporter.sendMail(mailOptions);
-    console.log('Welcome email envoyé:', result.messageId);
+    console.log("Welcome email envoyé:", result.messageId);
     return result;
   } catch (error) {
-    console.error('Erreur envoi welcome email:', error);
+    console.error("Erreur envoi welcome email:", error);
     throw error;
   }
 };
@@ -391,17 +394,17 @@ const testEmailConfiguration = async () => {
   try {
     // Tester Resend en priorité si configuré
     if (process.env.RESEND_API_KEY) {
-      console.log('🧪 Test configuration Resend...');
+      console.log("🧪 Test configuration Resend...");
       return await testResendConfiguration();
     } else {
-      console.log('🧪 Test configuration Nodemailer...');
+      console.log("🧪 Test configuration Nodemailer...");
       const transporter = createTransporter();
       await transporter.verify();
-      console.log('✅ Configuration email valide');
+      console.log("✅ Configuration email valide");
       return true;
     }
   } catch (error) {
-    console.error('❌ Configuration email invalide:', error.message);
+    console.error("❌ Configuration email invalide:", error.message);
     return false;
   }
 };
@@ -409,5 +412,5 @@ const testEmailConfiguration = async () => {
 module.exports = {
   sendMagicLinkEmail,
   sendWelcomeEmail,
-  testEmailConfiguration
+  testEmailConfiguration,
 };
