@@ -1,12 +1,28 @@
 const nodemailer = require("nodemailer");
-const {
-  sendMagicLink: resendSendMagicLink,
-  testResendConfiguration,
-} = require("./resendEmailService");
-const {
-  sendMagicLink: sendgridSendMagicLink,
-  testSendGridConfiguration,
-} = require("./sendgridEmailService");
+
+// Import conditionnel des services email
+let resendSendMagicLink, testResendConfiguration;
+let sendgridSendMagicLink, testSendGridConfiguration;
+
+try {
+  if (process.env.RESEND_API_KEY) {
+    const resendService = require("./resendEmailService");
+    resendSendMagicLink = resendService.sendMagicLink;
+    testResendConfiguration = resendService.testResendConfiguration;
+  }
+} catch (error) {
+  console.log("📧 Service Resend non disponible:", error.message);
+}
+
+try {
+  if (process.env.SENDGRID_API_KEY) {
+    const sendgridService = require("./sendgridEmailService");
+    sendgridSendMagicLink = sendgridService.sendMagicLink;
+    testSendGridConfiguration = sendgridService.testSendGridConfiguration;
+  }
+} catch (error) {
+  console.log("📧 Service SendGrid non disponible:", error.message);
+}
 
 // Configuration du transporteur email
 const createTransporter = () => {
@@ -338,12 +354,12 @@ const getWelcomeEmailTemplate = (pseudo) => {
 const sendMagicLinkEmail = async (email, magicLink, token = null) => {
   try {
     // Priorité 1: SendGrid (recommandé pour l'envoi à n'importe quelle adresse)
-    if (process.env.SENDGRID_API_KEY) {
+    if (process.env.SENDGRID_API_KEY && sendgridSendMagicLink) {
       console.log("📧 Utilisation de SendGrid pour l'envoi");
       return await sendgridSendMagicLink(email, magicLink, token);
     }
     // Priorité 2: Resend (limité à votre propre email)
-    else if (process.env.RESEND_API_KEY) {
+    else if (process.env.RESEND_API_KEY && resendSendMagicLink) {
       console.log("📧 Utilisation de Resend pour l'envoi");
       return await resendSendMagicLink(email, magicLink, token);
     }
@@ -404,12 +420,12 @@ const sendWelcomeEmail = async (email, pseudo) => {
 const testEmailConfiguration = async () => {
   try {
     // Priorité 1: Tester SendGrid si configuré
-    if (process.env.SENDGRID_API_KEY) {
+    if (process.env.SENDGRID_API_KEY && testSendGridConfiguration) {
       console.log("🧪 Test configuration SendGrid...");
       return await testSendGridConfiguration();
     }
     // Priorité 2: Tester Resend si configuré
-    else if (process.env.RESEND_API_KEY) {
+    else if (process.env.RESEND_API_KEY && testResendConfiguration) {
       console.log("🧪 Test configuration Resend...");
       return await testResendConfiguration();
     }
