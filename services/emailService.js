@@ -3,6 +3,10 @@ const {
   sendMagicLink: resendSendMagicLink,
   testResendConfiguration,
 } = require("./resendEmailService");
+const {
+  sendMagicLink: sendgridSendMagicLink,
+  testSendGridConfiguration,
+} = require("./sendgridEmailService");
 
 // Configuration du transporteur email
 const createTransporter = () => {
@@ -333,11 +337,18 @@ const getWelcomeEmailTemplate = (pseudo) => {
  */
 const sendMagicLinkEmail = async (email, magicLink, token = null) => {
   try {
-    // Utiliser Resend si configuré, sinon fallback sur Nodemailer
-    if (process.env.RESEND_API_KEY) {
+    // Priorité 1: SendGrid (recommandé pour l'envoi à n'importe quelle adresse)
+    if (process.env.SENDGRID_API_KEY) {
+      console.log("📧 Utilisation de SendGrid pour l'envoi");
+      return await sendgridSendMagicLink(email, magicLink, token);
+    }
+    // Priorité 2: Resend (limité à votre propre email)
+    else if (process.env.RESEND_API_KEY) {
       console.log("📧 Utilisation de Resend pour l'envoi");
       return await resendSendMagicLink(email, magicLink, token);
-    } else {
+    }
+    // Fallback: Nodemailer (SMTP)
+    else {
       console.log("📧 Utilisation de Nodemailer pour l'envoi");
       const transporter = createTransporter();
 
@@ -392,11 +403,18 @@ const sendWelcomeEmail = async (email, pseudo) => {
  */
 const testEmailConfiguration = async () => {
   try {
-    // Tester Resend en priorité si configuré
-    if (process.env.RESEND_API_KEY) {
+    // Priorité 1: Tester SendGrid si configuré
+    if (process.env.SENDGRID_API_KEY) {
+      console.log("🧪 Test configuration SendGrid...");
+      return await testSendGridConfiguration();
+    }
+    // Priorité 2: Tester Resend si configuré
+    else if (process.env.RESEND_API_KEY) {
       console.log("🧪 Test configuration Resend...");
       return await testResendConfiguration();
-    } else {
+    }
+    // Fallback: Tester Nodemailer
+    else {
       console.log("🧪 Test configuration Nodemailer...");
       const transporter = createTransporter();
       await transporter.verify();

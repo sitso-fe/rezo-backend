@@ -1,17 +1,19 @@
 /**
- * Service d'envoi d'emails avec Resend
- * Alternative moderne et gratuite à Gmail SMTP
+ * Service d'envoi d'emails avec SendGrid
+ * Alternative flexible et gratuite pour l'envoi d'emails
  */
-const { Resend } = require("resend");
+const sgMail = require('@sendgrid/mail');
 
-// Initialiser Resend de manière conditionnelle
-let resend = null;
+// Initialiser SendGrid de manière conditionnelle
+let isInitialized = false;
 
-const getResendInstance = () => {
-  if (!resend && process.env.RESEND_API_KEY) {
-    resend = new Resend(process.env.RESEND_API_KEY);
+const initializeSendGrid = () => {
+  if (!isInitialized && process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    isInitialized = true;
+    console.log('✅ SendGrid initialisé avec succès');
   }
-  return resend;
+  return isInitialized;
 };
 
 /**
@@ -24,10 +26,9 @@ const getResendInstance = () => {
 const sendMagicLink = async (email, magicLink, token = null) => {
   try {
     console.log(`📧 Envoi magic link à: ${email}`);
-
-    const resendInstance = getResendInstance();
-    if (!resendInstance) {
-      throw new Error("Resend non configuré - vérifiez RESEND_API_KEY");
+    
+    if (!initializeSendGrid()) {
+      throw new Error("SendGrid non configuré - vérifiez SENDGRID_API_KEY");
     }
 
     // Template HTML pour l'email
@@ -109,6 +110,14 @@ const sendMagicLink = async (email, magicLink, token = null) => {
               font-family: monospace;
               font-size: 12px;
             }
+            .security-note {
+              background: #fff3cd;
+              border: 1px solid #ffeaa7;
+              border-radius: 8px;
+              padding: 15px;
+              margin: 20px 0;
+              color: #856404;
+            }
           </style>
         </head>
         <body>
@@ -128,17 +137,18 @@ const sendMagicLink = async (email, magicLink, token = null) => {
               </a>
             </div>
             
-            ${
-              token
-                ? `
+            ${token ? `
               <div class="dev-info">
                 <strong>🧪 Mode Développement</strong><br>
                 Token: <code>${token}</code><br>
                 <small>Utilisez ce token pour tester la connexion</small>
               </div>
-            `
-                : ""
-            }
+            ` : ''}
+            
+            <div class="security-note">
+              <strong>🔒 Sécurité</strong><br>
+              Ce lien expire dans 10 minutes pour votre sécurité. Si vous n'avez pas demandé cette connexion, ignorez cet email.
+            </div>
             
             <div class="footer">
               <p>Ce lien expire dans 10 minutes pour votre sécurité.</p>
@@ -157,7 +167,7 @@ const sendMagicLink = async (email, magicLink, token = null) => {
       Cliquez sur ce lien pour vous connecter :
       ${magicLink}
       
-      ${token ? `\n🧪 Mode Développement - Token: ${token}` : ""}
+      ${token ? `\n🧪 Mode Développement - Token: ${token}` : ''}
       
       Ce lien expire dans 10 minutes.
       
@@ -165,60 +175,64 @@ const sendMagicLink = async (email, magicLink, token = null) => {
     `;
 
     // Configuration de l'email
-    const emailData = {
-      from: process.env.RESEND_FROM_EMAIL || "Rezo <onboarding@resend.dev>",
-      to: [email],
-      subject: "🎵 Votre lien magique Rezo",
-      html: htmlContent,
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL || 'Rezo <noreply@rezo.app>',
+      subject: '🎵 Votre lien magique Rezo',
       text: textContent,
+      html: htmlContent,
     };
 
     // Envoyer l'email
-    const result = await resendInstance.emails.send(emailData);
-
-    console.log("✅ Email envoyé avec succès:", result);
+    const result = await sgMail.send(msg);
+    
+    console.log('✅ Email envoyé avec succès via SendGrid');
     return {
       success: true,
-      messageId: result.id,
+      messageId: result[0].headers['x-message-id'],
       email: email,
       magicLink: magicLink,
       testToken: token,
+      provider: 'SendGrid'
     };
+
   } catch (error) {
-    console.error("❌ Erreur envoi email Resend:", error);
+    console.error('❌ Erreur envoi email SendGrid:', error);
     throw new Error(`Erreur envoi email: ${error.message}`);
   }
 };
 
 /**
- * Tester la configuration Resend
+ * Tester la configuration SendGrid
  * @returns {Promise<boolean>} True si la configuration est valide
  */
-const testResendConfiguration = async () => {
+const testSendGridConfiguration = async () => {
   try {
-    if (!process.env.RESEND_API_KEY) {
-      console.log("❌ RESEND_API_KEY non configurée");
+    if (!process.env.SENDGRID_API_KEY) {
+      console.log('❌ SENDGRID_API_KEY non configurée');
       return false;
     }
 
-    const resendInstance = getResendInstance();
-    if (!resendInstance) {
-      console.log("❌ Impossible d'initialiser Resend");
+    if (!initializeSendGrid()) {
+      console.log('❌ Impossible d\'initialiser SendGrid');
       return false;
     }
 
     // Test simple avec un email de test
-    const testResult = await resendInstance.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Rezo <onboarding@resend.dev>",
-      to: ["test@example.com"],
-      subject: "Test Configuration Resend",
-      html: "<p>Test de configuration Resend réussi !</p>",
-    });
+    const msg = {
+      to: 'test@example.com',
+      from: process.env.SENDGRID_FROM_EMAIL || 'Rezo <noreply@rezo.app>',
+      subject: 'Test Configuration SendGrid',
+      text: 'Test de configuration SendGrid réussi !',
+      html: '<p>Test de configuration SendGrid réussi !</p>',
+    };
 
-    console.log("✅ Configuration Resend valide:", testResult);
+    const result = await sgMail.send(msg);
+    console.log('✅ Configuration SendGrid valide:', result[0].statusCode);
     return true;
+
   } catch (error) {
-    console.error("❌ Erreur test configuration Resend:", error);
+    console.error('❌ Erreur test configuration SendGrid:', error);
     return false;
   }
 };
@@ -229,21 +243,22 @@ const testResendConfiguration = async () => {
  */
 const getEmailStats = async () => {
   try {
-    // Resend ne fournit pas d'API de stats dans la version gratuite
-    // On peut implémenter un système de logging local
     return {
-      status: "active",
-      provider: "Resend",
-      message: "Service actif",
+      status: 'active',
+      provider: 'SendGrid',
+      message: 'Service actif',
+      dailyLimit: '100 emails/jour (gratuit)',
+      monthlyLimit: '3000 emails/mois (gratuit)'
     };
   } catch (error) {
-    console.error("❌ Erreur récupération stats:", error);
-    return { status: "error", message: error.message };
+    console.error('❌ Erreur récupération stats:', error);
+    return { status: 'error', message: error.message };
   }
 };
 
 module.exports = {
   sendMagicLink,
-  testResendConfiguration,
-  getEmailStats,
+  testSendGridConfiguration,
+  getEmailStats
 };
+
