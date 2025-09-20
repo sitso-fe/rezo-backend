@@ -1,32 +1,8 @@
 const nodemailer = require("nodemailer");
 
-// Import conditionnel des services email
-let resendSendMagicLink, testResendConfiguration;
-let sendgridSendMagicLink, testSendGridConfiguration;
-
-try {
-  if (process.env.RESEND_API_KEY) {
-    const resendService = require("./resendEmailService");
-    resendSendMagicLink = resendService.sendMagicLink;
-    testResendConfiguration = resendService.testResendConfiguration;
-  }
-} catch (error) {
-  console.log("📧 Service Resend non disponible:", error.message);
-}
-
-try {
-  if (process.env.SENDGRID_API_KEY) {
-    const sendgridService = require("./sendgridEmailService");
-    sendgridSendMagicLink = sendgridService.sendMagicLink;
-    testSendGridConfiguration = sendgridService.testSendGridConfiguration;
-  }
-} catch (error) {
-  console.log("📧 Service SendGrid non disponible:", error.message);
-}
-
-// Configuration du transporteur email
+// Configuration du transporteur email Gmail SMTP
 const createTransporter = () => {
-  return nodemailer.createTransport({
+  return nodemailer.createTransporter({
     host: process.env.EMAIL_HOST,
     port: parseInt(process.env.EMAIL_PORT),
     secure: false, // true pour 465, false pour les autres ports
@@ -345,55 +321,42 @@ const getWelcomeEmailTemplate = (pseudo) => {
 };
 
 /**
- * Envoie un email avec magic link
+ * Envoie un email avec magic link via Gmail SMTP
  * @param {string} email - Email du destinataire
  * @param {string} magicLink - Lien magique à envoyer
- * @param {string} token - Token pour le mode développement
  * @returns {Promise} - Promesse de l'envoi
  */
-const sendMagicLinkEmail = async (email, magicLink, token = null) => {
+const sendMagicLinkEmail = async (email, magicLink) => {
   try {
-    // Priorité 1: SendGrid (recommandé pour l'envoi à n'importe quelle adresse)
-    if (process.env.SENDGRID_API_KEY && sendgridSendMagicLink) {
-      console.log("📧 Utilisation de SendGrid pour l'envoi");
-      return await sendgridSendMagicLink(email, magicLink, token);
-    }
-    // Priorité 2: Resend (limité à votre propre email)
-    else if (process.env.RESEND_API_KEY && resendSendMagicLink) {
-      console.log("📧 Utilisation de Resend pour l'envoi");
-      return await resendSendMagicLink(email, magicLink, token);
-    }
-    // Fallback: Nodemailer (SMTP)
-    else {
-      console.log("📧 Utilisation de Nodemailer pour l'envoi");
-      const transporter = createTransporter();
+    console.log("📧 Envoi magic link via Gmail SMTP...");
+    const transporter = createTransporter();
 
-      const mailOptions = {
-        from: `"Rezo" <${process.env.EMAIL_FROM}>`,
-        to: email,
-        subject: "🎵 Ton lien de connexion Rezo",
-        text: getMagicLinkTextTemplate(magicLink, email),
-        html: getMagicLinkEmailTemplate(magicLink, email),
-      };
+    const mailOptions = {
+      from: `"Rezo" <${process.env.EMAIL_FROM}>`,
+      to: email,
+      subject: "🎵 Ton lien de connexion Rezo",
+      text: getMagicLinkTextTemplate(magicLink, email),
+      html: getMagicLinkEmailTemplate(magicLink, email),
+    };
 
-      const result = await transporter.sendMail(mailOptions);
-      console.log("Magic link email envoyé:", result.messageId);
-      return result;
-    }
+    const result = await transporter.sendMail(mailOptions);
+    console.log("✅ Magic link email envoyé:", result.messageId);
+    return result;
   } catch (error) {
-    console.error("Erreur envoi magic link email:", error);
+    console.error("❌ Erreur envoi magic link email:", error);
     throw error;
   }
 };
 
 /**
- * Envoie un email de bienvenue
+ * Envoie un email de bienvenue via Gmail SMTP
  * @param {string} email - Email du destinataire
  * @param {string} pseudo - Pseudo de l'utilisateur
  * @returns {Promise} - Promesse de l'envoi
  */
 const sendWelcomeEmail = async (email, pseudo) => {
   try {
+    console.log("📧 Envoi email de bienvenue via Gmail SMTP...");
     const transporter = createTransporter();
 
     const mailOptions = {
@@ -405,40 +368,27 @@ const sendWelcomeEmail = async (email, pseudo) => {
     };
 
     const result = await transporter.sendMail(mailOptions);
-    console.log("Welcome email envoyé:", result.messageId);
+    console.log("✅ Welcome email envoyé:", result.messageId);
     return result;
   } catch (error) {
-    console.error("Erreur envoi welcome email:", error);
+    console.error("❌ Erreur envoi welcome email:", error);
     throw error;
   }
 };
 
 /**
- * Teste la configuration email
+ * Teste la configuration email Gmail SMTP
  * @returns {Promise<boolean>} - True si la configuration fonctionne
  */
 const testEmailConfiguration = async () => {
   try {
-    // Priorité 1: Tester SendGrid si configuré
-    if (process.env.SENDGRID_API_KEY && testSendGridConfiguration) {
-      console.log("🧪 Test configuration SendGrid...");
-      return await testSendGridConfiguration();
-    }
-    // Priorité 2: Tester Resend si configuré
-    else if (process.env.RESEND_API_KEY && testResendConfiguration) {
-      console.log("🧪 Test configuration Resend...");
-      return await testResendConfiguration();
-    }
-    // Fallback: Tester Nodemailer
-    else {
-      console.log("🧪 Test configuration Nodemailer...");
-      const transporter = createTransporter();
-      await transporter.verify();
-      console.log("✅ Configuration email valide");
-      return true;
-    }
+    console.log("🧪 Test configuration Gmail SMTP...");
+    const transporter = createTransporter();
+    await transporter.verify();
+    console.log("✅ Configuration Gmail SMTP valide");
+    return true;
   } catch (error) {
-    console.error("❌ Configuration email invalide:", error.message);
+    console.error("❌ Configuration Gmail SMTP invalide:", error.message);
     return false;
   }
 };
